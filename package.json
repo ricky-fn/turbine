@@ -1,0 +1,26 @@
+{
+  "name": "@a2604882741z/turbine",
+  "version": "1.1.4",
+  "description": "a SPA framework, base on MVVM conception",
+  "main": "index.js",
+  "files": ["lib"],
+  "scripts": {
+    "compile": "babel src -d lib"
+  },
+  "keywords": [
+    "MVVM",
+    "SPA",
+    "ES6",
+    "Virtual-Dom"
+  ],
+  "author": "Ricky",
+  "license": "ISC",
+  "devDependencies": {
+    "babel-preset-es2015": "^6.24.1",
+    "babel-preset-stage-0": "^6.24.1",
+    "himalaya": "^1.0.1"
+  },
+  "dependencies": {
+    "babel-polyfill": "^6.26.0"
+  }
+}
