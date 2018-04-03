@@ -1,4 +1,4 @@
-import Dep from "./dep"
+import {Dep} from "./observe"
 import evalWithContext from "../util/eval"
 import {stringify} from "himalaya"
 
@@ -10,6 +10,7 @@ class watch {
         this.node = vNode;
         this.recall = recall;
         this.update();
+        this.dep = null;
         Dep.target = null;
     }
     update() {
@@ -25,6 +26,13 @@ class watch {
             console.error(err + '\n\n', 'please check your template: \n' + str);
         }
         return this.value;
+    }
+    unwatch() {
+        let index = this.dep.subs.indexOf(this);
+        this.dep.subs.splice(index, 1);
+        this.vm = null;
+        this.node = null;
+        this.recall = null;
     }
 }
 

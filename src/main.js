@@ -1,13 +1,14 @@
 import {parse} from "himalaya"
 import addKey from "./util/addKey"
 import render from "./virtual/render"
-import _parser from "./virtual/parse"
-import watch from "./watch"
-import watcher from "./virtual/watch"
+// import _parser from "./virtual/parse"
+import {react} from "./virtual/observe"
+import watcher from "./virtual/watcher"
 import compare from "./virtual/compare"
 import {directives} from "./virtual/analyse"
 
 const publicDirectives = [];
+const publicComponents = {};
 
 function checkExistence(target, props, recall) {
     let keys = Object.keys(props);
@@ -27,53 +28,33 @@ function parseHTML(str) {
 }
 
 function parser(json, vm) {
-    return new _parser(json, vm);
+    let _parse = require("./virtual/parse").default;
+    return new _parse(json, vm);
 }
 
 let turbine = function(props) {
-    let {data, methods, watch} = props;
-    let vm = new turbine.prototype._init(props);
-
-    if (data != undefined && typeof data == "object") {
-        vm._observe(vm, data);
+    if (props instanceof turbine.prototype._init) {
+        return props;
+    } else {
+        return new turbine.prototype._init(props);
     }
-    vm._setMethods(vm, methods);
-
-    if (typeof watch == "object") {
-        let keys = Object.keys(watch);
-
-        keys.forEach(key => {
-            vm.$watch(key, watch[key]);
-        });
-    }
-
-    if (vm.$el != undefined && vm.$el != null) {
-        vm._render(vm.$el, vm);
-    }
-
-    return vm;
 };
 
 turbine.prototype = {
-    // $el: null, //parent dom node, it could be a string or a dom object
-    // _refs: {},
-    // $refs: {},
-    // _continued: true, // to manage whether dom should be reRendered
-    // $jsonTree: null,
-    // _vnode: null, // to define JSON type of html tree
-    // _components: null,
-    // _dir: [],
     _init(props) {
-        let {el, template, components, directives} = props;
+        let {el, template, components, directives, methods, data, watch} = props;
 
         this._refs = {};
         this.$refs = {};
+        this._components = [];
+        this._isComponent = props._isComponent || false;
+        this.$parent = props.$parent || null;
 
         if (el != undefined) {
             if (typeof el == "string") {
                 el = document.body.querySelector(el);
             }
-            template = el.outerHTML;
+            template = template || el.outerHTML;
 
             this.$el = el;
             this.$jsonTree = parseHTML(template);
@@ -95,82 +76,139 @@ turbine.prototype = {
             }
         }
 
-        if (turbine._components || components) {
-            this._components = Object.assign({}, components, turbine._components);
+        {
+            this._c = Object.assign({}, publicComponents);
+            if (components && typeof components == "object") {
+                Object.keys(components).forEach(_c => {
+                    turbine.component(this, _c, components[_c]);
+                });
+            }
+        }
+
+        {
+            if (data != undefined && typeof data == "object") {
+                this._observe(data);
+            }
+        }
+
+        this._setMethods(methods);
+
+        {
+            if (typeof watch == "object") {
+                let keys = Object.keys(watch);
+
+                keys.forEach(key => {
+                    this.$watch(key, watch[key]);
+                });
+            }
+        }
+
+        {
+            if (this.$el != undefined && this.$el != null) {
+                this._render(this.$el);
+            }
         }
 
         return this;
     },
-    _render(el, vm) {
+    _render(el) {
         let parentNode = el.parentNode;
 
-        this._vnode = parser(this.$jsonTree, vm);
+        this._vnode = parser(this.$jsonTree, this);
 
         let domFragment = render(this._vnode);
         this.$el = domFragment.firstChild;
 
         parentNode.replaceChild(domFragment, el);
 
-        if (typeof vm.ready == "function") {
-            vm.ready();
+        if (typeof this.ready == "function") {
+            this.ready();
         }
     },
-    _observe(vm, key, value) {
+    _observe(key, value) {
         let type = typeof key,
             length = arguments.length,
             data;
 
-        if (length == 2 && type == "object") {
+        if (length == 1 && type == "object") {
             data = key;
-        } else if (length == 3 && type == "string") {
+        } else if (length == 2 && type == "string") {
             data = {};
             data[key] = value;
         } else {
             return console.error("arguments error");
         }
 
-        checkExistence(vm, data, (prop) => {
+        checkExistence(this, data, (prop) => {
             console.error(prop + " has been used as a basic prototype");
             delete data[prop];
         });
 
-        new watch(
-            vm.$data || (function () {
+        new react(
+            this.$data || (function (vm) {
                 Object.defineProperty(vm, "$data", {
                     value: {},
                     enumerable: false
                 });
                 return vm.$data;
-            })(), data, vm, () => {
-            this._updateView(vm);
+            })(this), data, () => {
+            this._updateView();
         });
 
-        new watch(vm, vm.$data, vm, () => {
-            this._updateView(vm);
+        new react(this, this.$data, () => {
+            this._updateView();
         });
+        console.log(data)
     },
-    _setMethods(vm, methods) {
+    _setMethods(methods) {
         if (typeof methods != "object") {
             return;
         }
         let keys = Object.keys(methods);
 
         keys.forEach(key => {
-            if (vm.hasOwnProperty(key)) {
+            if (this.hasOwnProperty(key)) {
                 return console.error(key + "has been used as a data prototype");
             }
-            vm[key] = methods[key];
+            this[key] = methods[key];
         });
     },
-    _updateView(vm) {
+    _updateView() {
         if (!this._continued) {
             return;
         }
 
         let oldVN = this._vnode;
-        let newVN = this._vnode = parser(this.$jsonTree, vm);
+        let newVN = this._vnode = parser(this.$jsonTree, this);
 
-        compare(oldVN, newVN, {childNodes: [vm.$el]}, vm);
+        compare(oldVN, newVN, {childNodes: [this.$el]}, this);
+    },
+    _destroy() {
+        if (this._components.length > 0) {
+            this._components.forEach(component => component._destroy());
+        }
+
+        if (this._isComponent) {
+            let index = this.$parent._components.indexOf(this);
+            this.$parent._components.splice(index, 1);
+        }
+
+        let observe = this.$data ? this.$data.__ob__ : false;
+
+        if (observe) {
+            observe.destroy();
+        }
+
+        this._vnode[0].remove();
+        this._vnode = null;
+        this.$jsonTree = null;
+        this.$el = null;
+        this.$refs = null;
+        this._refs = null;
+        this._dir = null;
+        this._components = null;
+        this._c = null;
+        this.$parent = null;
     }
 };
 
@@ -232,7 +270,6 @@ turbine.hangup = turbine._turbine.$hangup = function(vm) {
     if (this instanceof turbine._turbine._init) {
         this.beforeHangup && this.beforeHangup();
 
-        // this.$refs = {};
         this._continued = false;
         this._vnode[0].remove();
         this._vnode = null;
@@ -308,5 +345,33 @@ turbine.directive = function (_t, name, fn) {
 directives.forEach(obj => {
     turbine.directive(obj.directive, obj);
 });
+
+turbine.component = function (childName, props) {
+    let _this;
+    if (arguments.length == 3) {
+        _this = arguments[0]._c;
+        childName = arguments[1];
+        props = arguments[2];
+    } else {
+        _this = publicComponents;
+    }
+
+    let isCamel = /([A-Z])/g.exec(childName);
+    let cName;
+
+    if (isCamel) {
+        isCamel.forEach(letter => {
+            cName = childName.replace(letter, '-' + letter.toLowerCase());
+        });
+    } else {
+        cName = childName;
+    }
+
+    if (_this.hasOwnProperty(cName)) {
+        return console.warn("this component name has been used, please rename your component.\nName: " + cName);
+    }
+
+    _this[cName] = props;
+};
 
 export default turbine;

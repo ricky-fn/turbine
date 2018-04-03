@@ -1,6 +1,6 @@
 import deepClone from "../util/clone"
-import watcher from "./watch"
-import watch from "../watch"
+import watcher from "./watcher"
+import {react} from "./observe"
 import evalWithContext from "../util/eval"
 
 const directives = [
@@ -137,11 +137,12 @@ const directives = [
                 let context = Object.create(properties);
 
                 (function(index) {
-                    let ob = new watch(context, data, null);
+                    let ob = new react(context, data, null);
                     let _w = new watcher(properties, copy, content, (oldVal, value) => {
                         let key = Object.keys(value)[index];
 
                         if (key === undefined) {
+                            // return ob.__ob__.destroy();
                             return _w = ob = null;
                         }
 
@@ -198,38 +199,25 @@ const directives = [
     {
         directive: 'bind',
         level: 1,
-        update: (el, binding, vNode, oldNode) => {
-            let value = binding.result;
-            if (value !== null && typeof value == 'object' && value.toString() == '[object Object]') {
-                if (binding.args != undefined) {
-                    let str = "", val;
-                    Object.keys(value).forEach(el => {
-                        val = value[el];
-
-                        if (typeof val == "boolean") {
-                            str += val ? el + " " : "";
-                        } else {
-                            str += `${el}: ${value[el]};`;
-                        }
-                    });
-                    setAttribute(vNode, el, binding.args, str);
-                } else {
-                    Object.keys(value).forEach(key => {
-                        setAttribute(vNode, el, key, value[key]);
-                    });
-                }
-            } else if (value instanceof Array) {
-                setAttribute(vNode, el, binding.args, value[0]);
-            } else {
-                setAttribute(vNode, el, binding.args, value);
+        bind: (el, binding, vNode) => {
+            if (vNode.isComponent === true) {
+                return vNode.attributes.push({key: binding.args, value: binding.result});
             }
+            bindingUpdate(el, binding, vNode);
+        },
+        update: (el, binding, vNode) => {
+            if (vNode.isComponent === true && vNode.component.hasOwnProperty(binding.args)) {
+                return vNode.component[binding.args] = binding.result;
+            }
+
+            bindingUpdate(el, binding, vNode);
         }
     },
     {
         directive: 'model$',
         level: 1,
         bind: (el, binding, vNode) => {
-            let inputType = vNode.tagName == "textarea" ? "text" : Array.find(vNode.attributes, el => el.key == "type").value;
+            let inputType = vNode.tagName == "textarea" ? "text" : ArrayFind(vNode.attributes, el => el.key == "type").value || "text";
             let content = binding.value;
             el.addEventListener('input', (binding.inputEvent = (e) => {
                 let data = evalWithContext(content, vNode.context);
@@ -252,7 +240,7 @@ const directives = [
             }));
         },
         update: (el, binding, vNode) => {
-            let inputType = vNode.tagName == "textarea" ? "text" : Array.find(vNode.attributes, el => el.key == "type").value;
+            let inputType = vNode.tagName == "textarea" ? "text" : ArrayFind(vNode.attributes, el => el.key == "type").value || "text";
 
             if (inputType == "radio") {
                 if (el.value == binding.result) {
@@ -313,6 +301,34 @@ const directives = [
     }
 ];
 
+function bindingUpdate(el, binding, vNode) {
+    let value = binding.result;
+
+    if (value !== null && typeof value == 'object' && value.toString() == '[object Object]') {
+        if (binding.args != undefined) {
+            let str = "", val;
+            Object.keys(value).forEach(el => {
+                val = value[el];
+
+                if (typeof val == "boolean") {
+                    str += val ? el + " " : "";
+                } else {
+                    str += `${el}: ${value[el]};`;
+                }
+            });
+            setAttribute(vNode, el, binding.args, str);
+        } else {
+            Object.keys(value).forEach(key => {
+                setAttribute(vNode, el, key, value[key]);
+            });
+        }
+    } else if (value instanceof Array) {
+        setAttribute(vNode, el, binding.args, value[0]);
+    } else {
+        setAttribute(vNode, el, binding.args, value);
+    }
+}
+
 function symbol(vNode, domTree, index, context) {
     let reg = vNode.content.match(/{{([^}}]*?)}}/g);
 
@@ -353,13 +369,23 @@ function resetIndex(index, math) {
 }
 
 function setAttribute(vNode, node, key, value) {
-    let original = Array.find(vNode.attributes, el => el.key == key);
+    let original = ArrayFind(vNode.attributes, el => el.key == key);
     let copy = node.attributes[key];
 
     if (!copy) {
         node.setAttribute(key, value);
     } else {
         copy.nodeValue = (original ? original.value + " " : "") + value;
+    }
+}
+
+function ArrayFind(array, callback) {
+    let i, data;
+    for (i = 0; i < array.length; i++) {
+        data = array[i];
+        if (callback(data)) {
+            return data;
+        }
     }
 }
 

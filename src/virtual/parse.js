@@ -1,32 +1,25 @@
 import deepClone from "../util/clone"
 import {symbol} from "./analyse"
-import turbine from "../main"
 import {stringify} from "himalaya"
-import evalWithContext from "../util/eval";
+import evalWithContext from "../util/eval"
+import component from "../component/main"
 
 class parseTemplate {
     constructor(domTree, context) {
         this.directives = context._dir;
-        let nodeTree = this.parse(deepClone(domTree), context);
+        this.components = context._c;
 
-        return nodeTree;
+        return this.parse(deepClone(domTree), context);
     }
     parse(domTree, context) {
-        let components = context._components;
-
         for (let index = 0; index < domTree.length; index++) {
             let vNode = domTree[index];
             if (vNode.type == "text") {
                 symbol(vNode, domTree, index, context);
             } else if (vNode.type == "element") {
-
-                if (components != null && components.hasOwnProperty(vNode.tagName)) {
+                if (this.components.hasOwnProperty(vNode.tagName)) {
                     vNode.isComponent = true;
-                    vNode.inserted(node => {
-                        turbine(Object.assign({
-                            el: node
-                        }, components[vNode.tagName]));
-                    });
+                    // context.components.push(new component());
                 }
 
                 try {
@@ -48,9 +41,20 @@ class parseTemplate {
         return domTree;
     }
     analyseHook(index, vNode, domTree, properties) {
-        let recall = (domTree, prop) => {
+        let recall = (newNode, domTree, prop) => {
             if (vNode.isComponent != true) {
                 this.parse(domTree || vNode.children, prop || properties);
+            } else {
+                let tagName = newNode.tagName;
+                let config = this.components[tagName];
+                newNode.tagName = "div";
+                newNode.inserted(function (el) {
+                    properties._components.push(
+                        new component(
+                            Object.assign({el, vNode: this}, config)
+                        )
+                    );
+                });
             }
         };
 
@@ -174,10 +178,10 @@ class makeSequence {
         ) {
             if (this.copy.length > 0) {
                 this.copy.forEach(item => {
-                    this.recall(item.vNode.children, item.properties);
+                    this.recall(item.vNode, item.vNode.children, item.properties);
                 });
             } else {
-                this.recall(params.vNode.children, params.properties);
+                this.recall(params.vNode, params.vNode.children, params.properties);
             }
         }
     }
@@ -187,20 +191,6 @@ class makeSequence {
             vNode, domTree, properties
         });
     }
-    // go(vNode, domTree, properties) {
-    //     this._flag = true;
-    //     this.copy.push({
-    //         vNode,
-    //         properties,
-    //         domTree
-    //     });
-    //     if (
-    //         this._cinx == this.queue.length - 1 &&
-    //         this._rinx == this.presentQueue.length - 1
-    //     ) {
-    //         this.recall(vNode.children, properties);
-    //     }
-    // }
     stop() {
         this._flag = false;
     }

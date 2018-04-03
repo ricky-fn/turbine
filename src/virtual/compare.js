@@ -14,7 +14,8 @@ function compare(oldVM, newVM, parent, context) {
         let nextDom = parent.childNodes[index];
 
         newNode.el = oldNode.el;
-        // newNode.isReady = oldNode.isReady;
+        newNode.component = oldNode.component;
+        newNode.isReady = oldNode.isReady;
 
         newNode.directives.forEach(obj => {
             obj.update && obj.update(newNode.el, obj.binding, newNode, oldNode);
