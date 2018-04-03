@@ -19,7 +19,19 @@ class parseTemplate {
             } else if (vNode.type == "element") {
                 if (this.components.hasOwnProperty(vNode.tagName)) {
                     vNode.isComponent = true;
-                    // context.components.push(new component());
+                } else if (vNode.tagName == "slot") {
+                    let slotName = "default";
+                    vNode.attributes.forEach(attr => {
+                        if (attr.key == "name") {
+                            slotName = attr.value;
+                        }
+                    });
+                    let slot = context.slots ? context.slots[slotName] : false;
+                    let applyArgs = [index, 1];
+                    if (slot) {
+                        (slot instanceof Array ? slot : [slot]).forEach(node => applyArgs.push(node));
+                    }
+                    [].splice.apply(domTree, applyArgs) && (index -= 1);
                 }
 
                 try {
@@ -45,10 +57,11 @@ class parseTemplate {
             if (vNode.isComponent != true) {
                 this.parse(domTree || vNode.children, prop || properties);
             } else {
-                let tagName = newNode.tagName;
+                let node = newNode || vNode;
+                let tagName = node.tagName;
                 let config = this.components[tagName];
-                newNode.tagName = "div";
-                newNode.inserted(function (el) {
+                node.tagName = "div";
+                node.inserted(function (el) {
                     properties._components.push(
                         new component(
                             Object.assign({el, vNode: this}, config)

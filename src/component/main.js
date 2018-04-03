@@ -25,7 +25,8 @@ class component extends turbine.prototype._init {
         let newProps = Object.assign({}, config, {
             data: usedData,
             _isComponent: true,
-            $parent: vNode.context
+            $parent: vNode.context,
+            slots: getSlots(vNode)
         });
 
         super(newProps);
@@ -33,6 +34,30 @@ class component extends turbine.prototype._init {
         vNode.component = this;
         vNode.el = this.$el;
         vNode.tagName = this.$el.tagName.toLowerCase();
+    }
+}
+
+function getSlots(vNode) {
+    let slots = {};
+    vNode.children.forEach(child => {
+        let isElement = child.type == "element";
+        let slot = isElement && ArrayFind(child.attributes, el => el.key == "slot");
+        if (slot) {
+            slots[slot.value] = child;
+        } else if (isElement) {
+            slots["default"] = slots["default"] instanceof Array ? slots["default"].concat(child) : [child]
+        }
+    });
+    return slots;
+}
+
+function ArrayFind(array, callback) {
+    let i, data;
+    for (i = 0; i < array.length; i++) {
+        data = array[i];
+        if (callback(data)) {
+            return data;
+        }
     }
 }
 
