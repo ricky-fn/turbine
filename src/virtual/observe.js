@@ -168,7 +168,7 @@ class observer {
 
         return val;
     }
-    destroy(prop) {
+    destroy(prop, refresh) {
         let ob, dep;
 
         if (arguments.length > 0) { // if prop argument has been settled, destroy sub values which is belong to prop
@@ -195,6 +195,10 @@ class observer {
 
             // erase all watchers
             dep.subs.forEach(watcher => watcher.unwatch());
+        }
+
+        if (refresh === true) {
+            this.react.recall && this.react.recall();
         }
     }
 }

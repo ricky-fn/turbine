@@ -284,6 +284,18 @@ turbine.set = turbine._turbine.$set = function(target, key, value) {
     });
 };
 
+turbine.delete = turbine._turbine.$delete = function (target, key) {
+    let ob;
+    let refresh = true;
+
+    if (typeof target == "object" && target.hasOwnProperty("__ob__")) {
+        ob = target.__ob__;
+        ob.destroy(key, refresh);
+    } else {
+        throw("target must be an Object or Array and it should have been observed");
+    }
+};
+
 turbine._turbine.$watch = function(exp, call, options) {
     let avoid = true;
     new watcher(this, null, exp, (oldVal, newVal) => {
