@@ -38,7 +38,7 @@ class react {
             } else if (_obj.__ob__) {
                 ob = _obj.__ob__;
             } else {
-                ob = new observer(_obj);
+                ob = new observer(_obj, this);
             }
 
             this.loopObj(_obj, _res, ob);
@@ -51,18 +51,18 @@ class react {
         Object.keys(res).forEach((prop) => {
             this.observeObj(obj, res, prop, observer); // observe and set value to reactive data
         });
-        if (isObservered(obj)) {
-            let keys = Object.keys(obj);
-            keys.forEach((prop, index) => { // loop the reactive data to find deleted subValues
-                prop = keys[keys.length - index - 1]; // loop props and start it at the end, avoid error happen after deleting Array sub value
-                if (!res.hasOwnProperty(prop)) {
-                    observer.destroy(prop); // destroy the observer of discarded subValue
-                }
-            })
-        }
+        // if (isObservered(obj)) {
+        //     let keys = Object.keys(obj);
+        //     keys.forEach((prop, index) => { // loop the reactive data to find deleted subValues
+        //         prop = keys[keys.length - index - 1]; // loop props and start it at the end, avoid error happen after deleting Array sub value
+        //         if (!res.hasOwnProperty(prop)) {
+        //             observer.destroy(prop); // destroy the observer of discarded subValue
+        //         }
+        //     })
+        // }
     }
     observeObj(obj, res, prop, observer) {
-        let dep = new Dep();
+        let dep = res instanceof Array ? observer.dep : new Dep();
         let rawVal = res[prop];
         let _des = Object.getOwnPropertyDescriptor(obj, prop);
 
@@ -77,9 +77,8 @@ class react {
                     get: () => {
                         let watcher = Dep.target;
                         if (watcher) { // Dep target would be triggered by watcher module
-                            let depTarget = obj instanceof Array ? observer.dep : dep; // if the val's parent value is not an Array set the dep target as private dep
-                            depTarget.addSub(watcher); // push watcher Object into the dep
-                            watcher.dep = depTarget;
+                            dep.addSub(watcher); // push watcher Object into the dep
+                            watcher.dep = dep;
                         }
 
                         return rawVal;
@@ -89,11 +88,9 @@ class react {
                             return;
                         }
 
-                        let depTarget = res instanceof Array ? observer.dep : dep; // if the val's parent value is not an Array set the dep target as private dep
-
                         rawVal = observer.update(prop, newVal, this); // update values
 
-                        depTarget.notify(rawVal, newVal); // notify watchers that value has been updated
+                        dep.notify(rawVal, newVal); // notify watchers that value has been updated
 
                         this.recall && this.recall(rawVal); // call the public recall
                     },
@@ -133,20 +130,19 @@ class react {
 }
 
 class observer {
-    constructor(target) {
+    constructor(target, react) {
         this.dep = new Dep();
-        this.value = null;
+        this.value = new target.__proto__.constructor();
+        this.react = react;
 
         Object.defineProperty(target, "__ob__", {
             enumerable: false,
             value: this
         });
     }
-    update(key, newVal, react) {
+    update(key, newVal, refresh) {
         let val = this.value[key];
         let ob, subs;
-
-        react = react || arguments[0];
 
         if (val != undefined && isObservered(val)) {
             ob = val.__ob__;
@@ -156,9 +152,17 @@ class observer {
                 subs.forEach(watcher => newOb_dep.addSub(watcher)); // update new value's watchers
                 val = newVal;
             } else {
-                react.observe(val, newVal); // if new value has not observed yet set it into next loop
+                this.react.observe(val, newVal); // if new value has not observed yet set it into next loop
             }
         } else {
+            if (val == undefined) {
+                let data = new this.value.__proto__.constructor();
+                data[key] = newVal;
+                this.react.observe(this.value, data);
+                if (refresh === true) {
+                    this.react.recall && this.react.recall();
+                }
+            }
             val = newVal; // if reactive data is not observed and newVal is observed, update new value directly
         }
 

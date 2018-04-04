@@ -21,7 +21,7 @@ function compare(oldVM, newVM, parent, context) {
             obj.update && obj.update(newNode.el, obj.binding, newNode, oldNode);
         });
 
-        if (oldChild) {
+        if (oldChild && !oldNode.isComponent) {
             compare(oldChild, newChild, nextDom, context);
         }
     });
@@ -37,13 +37,6 @@ function applyPatch(patch, parent, context) {
 
             break;
         case "delete":
-            // target = parent.childNodes[patch.index];
-            // let gather = target.querySelectorAll("[ref]");
-            //
-            // refs.removeRefs(context, target);
-            // Array.forEach(gather, target => {
-            //     refs.removeRefs(context, target);
-            // });
 
             oldNode.remove();
             break;

@@ -1,7 +1,6 @@
 import {parse} from "himalaya"
 import addKey from "./util/addKey"
 import render from "./virtual/render"
-// import _parser from "./virtual/parse"
 import {react} from "./virtual/observe"
 import watcher from "./virtual/watcher"
 import compare from "./virtual/compare"
@@ -156,10 +155,18 @@ turbine.prototype = {
             this._updateView();
         });
 
-        new react(this, this.$data, () => {
-            this._updateView();
+        Object.keys(this.$data).forEach(prop => {
+            Object.defineProperty(this, prop, {
+                enumerable: true,
+                configurable: true,
+                get: () => {
+                    return this.$data[prop];
+                },
+                set: (newVal) => {
+                    this.$data[prop] = newVal;
+                }
+            });
         });
-        console.log(data)
     },
     _setMethods(methods) {
         if (typeof methods != "object") {
@@ -223,38 +230,58 @@ turbine.use = (obj, options) => {
     }
 };
 
-turbine.set = turbine._turbine.$set = function() {
+turbine.set = turbine._turbine.$set = function(target, key, value) {
     let length = arguments.length,
-        i = 3,
-        target, key, value;
+        vals, ob;
 
-    if (length == i) {
-        target = arguments[0];
-        key = arguments[1];
-        value = arguments[2];
-    } else {
-        target = this;
-        key = arguments[0];
-        value = arguments[1];
-    }
+    if (length == 2 && typeof target == "string" && this instanceof turbine.prototype._init) {
+        value = key;
+        vals = target.split(".");
+        target = this.$data;
+        key = vals[vals.length - 1];
 
-    if (target instanceof Array) {
-        return target.forEach(el => {
-            if (el instanceof turbine._turbine._init) {
-                set(el, key, value);
+        vals.forEach((valName, index) => {
+            if (target.hasOwnProperty(valName) && index < vals.length - 1) {
+                target = target[valName];
             } else {
-                throw("target must be a instance of turbine");
+                let separate = valName.match(/\[\w+\]/g);
+                let prefix = valName.match(/^(\w+)/)[0];
+                if (separate != null && separate.length > 1) {
+                    separate.map((val, i) => {
+                        separate[i] = val.replace("[", "").replace("]", "");
+                    });
+                    separate.unshift(prefix);
+
+                    separate.forEach((valName, i) => {
+                        if (i <= separate.length - 2 || index <= vals.length - 1) {
+                            target = target[valName];
+                        } else if (index == vals.length - 1) {
+                            key = valName;
+                        }
+                    });
+                } else if (index < vals.length - 1) {
+                    throw "reference Error";
+                }
             }
+
         });
-    } else if (target instanceof turbine.prototype._init) {
-        set(target, key, value);
-    } else {
-        throw("target must be a instance of turbine");
+    } else if (length !== 3 && !(target instanceof Object)) {
+        throw "arguments Error";
     }
 
-    function set(target, key, value) {
-        target._observe(target, key, value);
-    }
+    ob = target.__ob__;
+    ob.update(key, value, true);
+
+    Object.defineProperty(target, key, {
+        enumerable: true,
+        configurable: true,
+        get: () => {
+            return ob.value[key];
+        },
+        set: (newVal) => {
+            ob.value[key] = newVal;
+        }
+    });
 };
 
 turbine._turbine.$watch = function(exp, call, options) {
