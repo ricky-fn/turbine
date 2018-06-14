@@ -1,10 +1,11 @@
-import vNode from "../virtual/vNode"
+import vNode from "../virtual/vNode";
 
-function clone(item) {
+let types = [ Number, String, Boolean ];
+
+function clone(item, isDeep) {
     if (!item) { return item; } // null, undefined values check
-
-    var types = [ Number, String, Boolean ],
-        result;
+    isDeep = arguments.length == 1 ? true : isDeep;
+    let result;
     // normalizing primitives if someone did new String('aaa'), or new Number('444');
     types.forEach(function(type) {
         if (item instanceof type) {
@@ -14,13 +15,24 @@ function clone(item) {
     if (typeof result == "undefined") {
         if (Object.prototype.toString.call( item ) === "[object Array]") {
             result = [];
-            item.forEach(function(child, index) {
-                result[index] = clone( child );
+            let isRoot = false;
+            item.forEach(function(child) {
+                if (!isRoot) {
+                    if (child.tagName === "turbine") {
+                        isRoot = true;
+                        result.length = 0;
+                    }
+                    if (child.type === "comment") {
+                        return;
+                    }
+                    result.push(clone(child, isDeep));
+                }
             });
         } else if (typeof item == "object") {
-            result = isNode(item) ? (new vNode(item)) : {};
+            result = isNode(item) ? (new vNode(item)): {};
+
             for (var i in item) {
-                result[i] = clone(item[i]);
+                result[i] = !isDeep && i === "children" ? [] : clone(item[i], isDeep);
             }
         } else {
             result = item;
@@ -31,8 +43,7 @@ function clone(item) {
 }
 
 function isNode(obj) {
-    let has = Object.prototype.hasOwnProperty;
-    return (has.call(obj, "content") || has.call(obj, "children"));
+    return obj.type == "element" || obj.type == "text";
 }
 
 export default clone;

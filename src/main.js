@@ -1,10 +1,10 @@
-import {parse} from "himalaya"
-import addKey from "./util/addKey"
-import render from "./virtual/render"
-import {react} from "./virtual/observe"
-import watcher from "./virtual/watcher"
-import compare from "./virtual/compare"
-import {directives} from "./virtual/analyse"
+import renderJsonTree from "./util/jsonTree";
+import render from "./virtual/render";
+import {react} from "./virtual/observe";
+import watcher from "./virtual/watcher";
+import {directives} from "./virtual/analyse";
+import clone from "./util/clone";
+import parser from "./virtual/parse";
 
 const publicDirectives = [];
 const publicComponents = {};
@@ -16,19 +16,7 @@ function checkExistence(target, props, recall) {
         if (target.hasOwnProperty(prop)) {
             recall(prop);
         }
-    })
-}
-
-function parseHTML(str) {
-    let json = parse(str);
-    addKey(json);
-
-    return json;
-}
-
-function parser(json, vm) {
-    let _parse = require("./virtual/parse").default;
-    return new _parse(json, vm);
+    });
 }
 
 let turbine = function(props) {
@@ -46,9 +34,21 @@ turbine.prototype = {
         this._refs = {};
         this.$refs = {};
         this._components = [];
-        this._isComponent = props._isComponent || false;
-        this.$parent = props.$parent || null;
-        this.slots = slots || null;
+        // this._isComponent = props._isComponent || false;
+        // this.$parent = props.$parent || null;
+        // this.slots = slots || null;
+        this._dir = [];
+        this._vnode = [];
+        this.$el = null;
+        this._continued = false;
+
+        Object.keys(props).forEach(prop => {
+            if (this.hasOwnProperty(prop)) {
+                console.warn("this prototype name has been used already, please rename it:\n" + prop);
+            } else if (["components", "directives", "methods", "data", "watch", "el"].indexOf(prop) < 0) {
+                this[prop] = props[prop];
+            }
+        });
 
         if (el != undefined) {
             if (typeof el == "string") {
@@ -56,16 +56,14 @@ turbine.prototype = {
             }
             template = template || el.outerHTML;
 
-            this.$el = el;
-            this.$jsonTree = parseHTML(template);
+            this.$jsonTree = renderJsonTree(template);
             this._continued = true;
         } else if (template != undefined) {
-            this.$jsonTree = parseHTML(template);
+            this.$jsonTree = renderJsonTree(template);
             this._continued = false;
         }
 
         {
-            this._dir = [];
             publicDirectives.forEach(directives => {
                 this._dir.push(directives);
             });
@@ -85,13 +83,18 @@ turbine.prototype = {
             }
         }
 
+        this._setMethods(methods);
+
+        if (this.beforeCreate) {
+            this.beforeCreate();
+        }
+
+
         {
             if (data != undefined && typeof data == "object") {
                 this._observe(data);
             }
         }
-
-        this._setMethods(methods);
 
         {
             if (typeof watch == "object") {
@@ -103,9 +106,13 @@ turbine.prototype = {
             }
         }
 
+        if (this.created) {
+            this.created();
+        }
+
         {
-            if (this.$el != undefined && this.$el != null) {
-                this._render(this.$el);
+            if (el != undefined && el != null) {
+                this._render(el);
             }
         }
 
@@ -113,16 +120,23 @@ turbine.prototype = {
     },
     _render(el) {
         let parentNode = el.parentNode;
-
-        this._vnode = parser(this.$jsonTree, this);
+        this._vnode = new parser(clone(this.$jsonTree), this);
 
         let domFragment = render(this._vnode);
-        this.$el = domFragment.firstChild;
+        this._vnode.forEach(vNode => {
+            if (vNode.tagName == "turbine") {
+                this.$el = vNode.el;
+            }
+        });
+        if (this.$el === null) {
+            throw("couldn't find turbine as a root html tag");
+        }
 
         parentNode.replaceChild(domFragment, el);
 
-        if (typeof this.ready == "function") {
-            this.ready();
+        this._continued = true;
+        if (this.mounted) {
+            this.mounted();
         }
     },
     _observe(key, value) {
@@ -144,6 +158,7 @@ turbine.prototype = {
             delete data[prop];
         });
 
+        let timer;
         new react(
             this.$data || (function (vm) {
                 Object.defineProperty(vm, "$data", {
@@ -152,8 +167,12 @@ turbine.prototype = {
                 });
                 return vm.$data;
             })(this), data, () => {
-            this._updateView();
-        });
+                clearTimeout(timer);
+                timer = setTimeout(() => {
+                    timer = null;
+                    this._updateView();
+                });
+            });
 
         Object.keys(this.$data).forEach(prop => {
             Object.defineProperty(this, prop, {
@@ -186,10 +205,8 @@ turbine.prototype = {
             return;
         }
 
-        let oldVN = this._vnode;
-        let newVN = this._vnode = parser(this.$jsonTree, this);
-
-        compare(oldVN, newVN, {childNodes: [this.$el]}, this);
+        new parser(this._vnode, this);
+        render(this._vnode, [this.$el]);
     },
     _destroy() {
         if (this._components.length > 0) {
@@ -217,6 +234,7 @@ turbine.prototype = {
         this._components = null;
         this._c = null;
         this.$parent = null;
+        this.vNode = null;
     }
 };
 
@@ -271,17 +289,6 @@ turbine.set = turbine._turbine.$set = function(target, key, value) {
 
     ob = target.__ob__;
     ob.update(key, value, true);
-
-    Object.defineProperty(target, key, {
-        enumerable: true,
-        configurable: true,
-        get: () => {
-            return ob.value[key];
-        },
-        set: (newVal) => {
-            ob.value[key] = newVal;
-        }
-    });
 };
 
 turbine.delete = turbine._turbine.$delete = function (target, key) {
@@ -296,14 +303,24 @@ turbine.delete = turbine._turbine.$delete = function (target, key) {
     }
 };
 
-turbine._turbine.$watch = function(exp, call, options) {
-    let avoid = true;
-    new watcher(this, null, exp, (oldVal, newVal) => {
-        if (!avoid) {
-            call.call(this, oldVal, newVal);
-        }
-        avoid = false;
-    });
+turbine._turbine.$emit = function (eventName) {
+    let found = false;
+    let args = Array.prototype.slice.call(arguments, 1);
+    if (this.vNode != undefined && this.vNode.data.events) {
+        this.vNode.data.events.forEach(event => {
+            if (event.event == eventName) {
+                found = true;
+                event.fn.apply(this.vNode.context, args);
+            }
+        });
+    }
+    if (!found && this.$parent) {
+        this.$parent.$emit(eventName, args);
+    }
+};
+
+turbine._turbine.$watch = function(exp, options) {
+    new watcher(this, exp, options);
 };
 
 turbine.hangup = turbine._turbine.$hangup = function(vm) {
@@ -320,8 +337,7 @@ turbine.hangup = turbine._turbine.$hangup = function(vm) {
 
 turbine.restart = turbine._turbine.$restart = function(vm) {
     if (this instanceof turbine._turbine._init) {
-        this._continued = true;
-        this._render(vm.$el, vm);
+        this._render(this.$el);
     } else if (vm instanceof turbine._turbine._init) {
         vm.$restart(vm);
     }
@@ -338,8 +354,7 @@ turbine._turbine.$mount = function (el) {
         throw "arguments error";
     }
 
-    this._continued = true;
-    this._render(this.$el = element, this);
+    this._render(this.$el = element);
 
     return this;
 };
@@ -401,7 +416,7 @@ turbine.component = function (childName, props) {
 
     if (isCamel) {
         isCamel.forEach(letter => {
-            cName = childName.replace(letter, '-' + letter.toLowerCase());
+            cName = childName.replace(letter, "-" + letter.toLowerCase());
         });
     } else {
         cName = childName;

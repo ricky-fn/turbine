@@ -1,1 +1,1 @@
-module.exports = require("./lib/main").default;
+module.exports = require("./dist/turbine.min");

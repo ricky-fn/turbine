@@ -6,14 +6,16 @@ class Dep {
     constructor() {
         this.subs = [];
     }
-    addSub(sub) {
-        this.subs.push(sub);
+    addSub(watcher) {
+        if (this.subs.indexOf(watcher) < 0) {
+            this.subs.push(watcher);
+            watcher.deps.push(this);
+        }
     }
-    notify() {
-        let args = Array.prototype.slice.call(arguments, 1);
+    notify(val, oldVal) {
         this.subs.forEach(sub => {
             if (sub != undefined) {
-                sub.update(args[0], args[1]);
+                sub.update(val, oldVal);
             }
         });
     }
@@ -32,18 +34,18 @@ class react {
     observe(_obj, _res) {
         let type = Object.prototype.toString.call(_res);
         let ob;
-        if (type == '[object Object]' || type == '[object Array]') {
+        if (type == "[object Object]" || type == "[object Array]") {
             if (_res.__ob__) {
-               ob =  _res.__ob__;
+                ob = _res.__ob__;
             } else if (_obj.__ob__) {
                 ob = _obj.__ob__;
             } else {
-                ob = new observer(_obj, this);
+                ob = type == "[object Array]" ? new observerArray(_obj, this) : new observer(_obj, this);
             }
 
             this.loopObj(_obj, _res, ob);
-            if (type == '[object Array]') {
-                this.cloneArray(_obj, ob);
+            if (type == "[object Array]") {
+                this.replaceArrayProperty(_obj, ob);
             }
         }
     }
@@ -51,122 +53,115 @@ class react {
         Object.keys(res).forEach((prop) => {
             this.observeObj(obj, res, prop, observer); // observe and set value to reactive data
         });
-        // if (isObservered(obj)) {
-        //     let keys = Object.keys(obj);
-        //     keys.forEach((prop, index) => { // loop the reactive data to find deleted subValues
-        //         prop = keys[keys.length - index - 1]; // loop props and start it at the end, avoid error happen after deleting Array sub value
-        //         if (!res.hasOwnProperty(prop)) {
-        //             observer.destroy(prop); // destroy the observer of discarded subValue
-        //         }
-        //     })
-        // }
     }
     observeObj(obj, res, prop, observer) {
-        let dep = res instanceof Array ? observer.dep : new Dep();
-        let rawVal = res[prop];
-        let _des = Object.getOwnPropertyDescriptor(obj, prop);
+        let dep = observer.dep;
+        let val = res[prop], oldVal;
 
-        // if resource is an Array and reactive Object has not such prop exist it will be initialized as resource's data type
-        if (res instanceof Array && !obj.hasOwnProperty(prop)) {
-            obj[prop] = new rawVal.__proto__.constructor();
+        if (!(res instanceof Array)) { // define value's subValue which value is an Object
+            Object.defineProperty(obj, prop, {
+                get: () => {
+                    let watcher = Dep.target;
+
+                    if (isObservered(val)) {
+                        dep = val.__ob__.dep;
+                    }
+
+                    if (watcher != null || watcher != undefined) { // Dep target would be triggered by watcher module
+                        dep.addSub(watcher); // push watcher Object into the dep
+                    }
+
+                    return val;
+                },
+                set: (newVal) => {
+                    if (newVal === val) {
+                        return;
+                    } else {
+                        oldVal = val;
+                        val = newVal;
+                    }
+
+                    if (oldVal instanceof Object) {
+                        injectWathcers(oldVal, val);
+                    } else {
+                        dep.notify();
+                    }
+
+                    this.recall && this.recall(val); // call the public recall
+                },
+                enumerable: true,
+                configurable: true
+            });
+        } else {
+            obj[prop] = val;
         }
 
-        if ((_des == undefined || _des.hasOwnProperty("value"))) {
-            if (!(res instanceof Array)) { // define value's subValue which value is an Object
-                Object.defineProperty(obj, prop, {
-                    get: () => {
-                        let watcher = Dep.target;
-                        if (watcher) { // Dep target would be triggered by watcher module
-                            dep.addSub(watcher); // push watcher Object into the dep
-                            watcher.dep = dep;
-                        }
-
-                        return rawVal;
-                    },
-                    set: (newVal) => {
-                        if (newVal === rawVal) {
-                            return;
-                        }
-
-                        rawVal = observer.update(prop, newVal, this); // update values
-
-                        dep.notify(rawVal, newVal); // notify watchers that value has been updated
-
-                        this.recall && this.recall(rawVal); // call the public recall
-                    },
-                    enumerable: true,
-                    configurable: true
-                });
-            } else if (obj[prop] != rawVal && typeof obj[prop] != "object") { // update value when present is unequal to newVal and present val is not an Object or Array, if it is an Object and Array let program to compare these two value's subValues;
-                obj[prop] = rawVal;
-            }
-        } else if (obj[prop] != rawVal) { // if the reactive Object's subValue is unequal to resource's subValue,
-            obj[prop] = observer.update(prop, rawVal, this);
-        }
-
-        observer.value = obj; // update the observer's value this will impact the real data structure
+        // observer.value = obj; // update the observer's value this will impact the real data structure
         this.observe(obj[prop], res[prop]); // loop subValues
     }
-    cloneArray(array, observer) {
-        let ORP = ['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'];
+    replaceArrayProperty(array, observer) {
+        let ORP = ["push", "pop", "shift", "unshift", "splice", "sort", "reverse"];
         let arrayProto = Array.prototype;
         let newProto = Object.create(arrayProto);
+        let dep = observer.dep;
         let self = this;
-
-        ORP.forEach(function (prop) {
+        ORP.forEach(prop => {
             Object.defineProperty(newProto, prop, {
-                value: function (newVal) {
-                    arrayProto[prop].apply(observer.value, arguments);
-                    observer.update(self);
-                    self.recall && self.recall(newVal);
+                value: function() {
+                    let oldVal = array.concat();
+                    arrayProto[prop].apply(array, arguments);
+                    array.forEach((val, index) => {
+                        if (!isObservered(val) && val instanceof Object) {
+                            self.observe(val, val);
+                            if (index < oldVal.length - 1) {
+                                injectWathcers(oldVal[index], array[index]);
+                            }
+                        }
+                    });
+
+                    dep.notify();
+                    self.recall && self.recall();
                 },
                 enumerable: false,
                 configurable: true,
                 writable: true
             });
         });
-        array.__proto__ = newProto;
+        setPrototypeOf(array, newProto);
+        // array.__proto__ = newProto;
+        observer.value = array;
     }
 }
 
 class observer {
     constructor(target, react) {
         this.dep = new Dep();
-        this.value = new target.__proto__.constructor();
         this.react = react;
+        this.value = target;
 
         Object.defineProperty(target, "__ob__", {
             enumerable: false,
             value: this
         });
     }
-    update(key, newVal, refresh) {
-        let val = this.value[key];
-        let ob, subs;
+    update(key, newVal) {
+        let existed = hasKey(this.value, key);
+        let referred = {};
 
-        if (val != undefined && isObservered(val)) {
-            ob = val.__ob__;
-            subs = ob.dep.subs;
-            if (isObservered(newVal)) { // if the new value has been observed
-                let newOb_dep = newVal.__ob__.dep;
-                subs.forEach(watcher => newOb_dep.addSub(watcher)); // update new value's watchers
-                val = newVal;
+        if (existed) {
+            if (newVal instanceof Object) {
+                referred = newVal instanceof Array ? [] : {};
+                this.react.observe(referred, newVal);
+                this.value[key] = referred;
             } else {
-                this.react.observe(val, newVal); // if new value has not observed yet set it into next loop
+                this.value[key] = newVal;
             }
         } else {
-            if (val == undefined) {
-                let data = new this.value.__proto__.constructor();
-                data[key] = newVal;
-                this.react.observe(this.value, data);
-                if (refresh === true) {
-                    this.react.recall && this.react.recall();
-                }
-            }
-            val = newVal; // if reactive data is not observed and newVal is observed, update new value directly
+            referred[key] = newVal;
+            this.react.observeObj(this.value, referred, key, this);
+            this.dep.notify();
+            this.react.recall && this.react.recall();
         }
-
-        return val;
     }
     destroy(prop, refresh) {
         let ob, dep;
@@ -187,9 +182,9 @@ class observer {
             // loop value's sub values to delete them and lunch destroy command discretely.
             Object.keys(ob.value).forEach(val => {
                 let ob = val.__ob__;
-                delete ob.value[prop];
                 if (isObservered(val)) {
                     ob.destroy();
+                    ob.value[prop] = null;
                 }
             });
 
@@ -203,8 +198,94 @@ class observer {
     }
 }
 
+class observerArray extends observer {
+    constructor(target, rawVal, react) {
+        super(target, rawVal, react);
+    }
+    update(key, newVal) {
+        let existed = hasKey(this.value, key);
+        let referred = [];
+        let oldVal = this.value[key];
+        referred[key] = newVal;
+
+        if (!isObservered(newVal)) {
+            this.react.observeObj(this.value, referred, key, this);
+        } else {
+            this.value[key] = newVal;
+        }
+
+        if (existed) {
+            injectWathcers(oldVal, newVal);
+        }
+
+        this.dep.notify();
+
+        // if (existed && oldVal instanceof Object) {
+        //
+        // }
+
+        this.react.recall && this.react.recall();
+    }
+}
+
+function setPrototypeOf(obj, defaults) {
+    let keys = Object.getOwnPropertyNames(defaults);
+
+    for (let i = 0; i < keys.length; i++) {
+        let key = keys[i];
+        let value = Object.getOwnPropertyDescriptor(defaults, key);
+
+        if (value && value.configurable) {
+            Object.defineProperty(obj, key, value);
+        }
+    }
+
+    return obj;
+}
+
 function isObservered(val) {
     return (val instanceof Object || val instanceof Array) && val.__ob__ != undefined ? true : false;
+}
+
+function getobserve(val) {
+    return isObservered(val) ? val.__ob__ : null;
+}
+
+function hasKey(val, key) {
+    return Object.getOwnPropertyDescriptor(val, key);
+}
+
+function injectWathcers(oldVal, newVal) {
+    let preOB = getobserve(oldVal);
+    let nextOB = getobserve(newVal);
+    if (nextOB && preOB) {
+        updateWatchers(preOB.dep, nextOB.dep);
+        preOB.dep.notify();
+        eliminateWatchers(preOB.dep);
+        let newValKeys = Object.keys(newVal);
+        Object.keys(oldVal).forEach((val, key) => {
+            if (isObservered(oldVal[val]) && newValKeys[key]) {
+                injectWathcers(oldVal[val], newVal[newValKeys[key]]);
+            }
+        });
+    }
+}
+
+function updateWatchers(oldDep, newDep) {
+    let watchers = oldDep.subs;
+    newDep.subs = newDep.subs.concat(watchers);
+
+    watchers.forEach(watcher => {
+        if (watcher != undefined) {
+            // let index = watcher.deps.indexOf(oldDep);
+            // watcher.deps.splice(index, 1, newDep);
+            watcher.deps.push(newDep);
+        }
+    });
+}
+
+function eliminateWatchers(dep) {
+    dep.subs.length = 0;
 }
 
 export {react, Dep};
