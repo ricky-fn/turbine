@@ -1702,7 +1702,7 @@
 	            vNode.data.originNode = prevNode;
 	            vNode._else = !prevNode._if;
 	        } else {
-	            throw "Turbine couldn't \"v-if\" attribute on previous nodes ";
+	            throw "Turbine couldn't \"t-if\" attribute on previous nodes ";
 	        }
 	    },
 	    update: function update(el, binding, vNode) {
@@ -2189,7 +2189,7 @@
 	        var context = Object.create(properties);
 	        newNode = clone(vNode.reference);
 	        newNode.attributes = newNode.attributes.filter(function (attr) {
-	            return attr.key != "v-for";
+	            return attr.key != "t-for";
 	        });
 	        newNode.directives.push(vNode.directives[0]);
 	        newNode.index = vNode.index + (index += 1);
@@ -2407,7 +2407,7 @@
 	        value: function matchHook(attr, call) {
 	            this.directives.forEach(function (match) {
 	                var directive = match.directive;
-	                var prefix = directive.indexOf("^") < 0 ? "^v-" : "";
+	                var prefix = directive.indexOf("^") < 0 ? "^t-" : "";
 	                var reg = evalWithContext("/" + (prefix + directive) + "/");
 	                if (reg.test(attr.key)) {
 	                    call(match);
@@ -2574,9 +2574,9 @@
 	        this._refs = {};
 	        this.$refs = {};
 	        this._components = [];
-	        this._isComponent = props._isComponent || false;
-	        this.$parent = props.$parent || null;
-	        this.slots = slots || null;
+	        // this._isComponent = props._isComponent || false;
+	        // this.$parent = props.$parent || null;
+	        // this.slots = slots || null;
 	        this._dir = [];
 	        this._vnode = [];
 	        this.$el = null;
