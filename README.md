@@ -21,8 +21,174 @@ You can install Turbine via npm installation
 npm install @a2604882741z/turbine --save-dev
 ```
 
-### troubleshooting
+### Tourist Guide
+Import it at the beginning of your porject's entry
+```bash
+import Turbine from "@a2604882741z/turbine";
+```
+
+#### A basic example
+how to initialize a Turbine object:
+```HTML
+code:
+<turbine id="myFirstTurbineApp"></turbine>
+<script>
+	Turbine({
+    	el: "#myFirstTurbineApp"
+    });
+</script>
+
+result:
+<div id="myFirstTurbineApp"></div>
+```
+`el` is a key to tell Turbine which node shall be used as root target, it supports string or html object.
+
+
+#### Render from data:
+then we gonna put some data and render it into the HTML:
+```HTML
+code:
+<turbine id="myFirstTurbineApp">{{message}}</turbine>
+<script>
+	Turbine({
+    	el: "#myFirstTurbineApp",
+        data: {
+        	message: "hello world"
+        }
+    });
+</script>
+
+result:
+<div id="myfirstTurbineApp">hello world</div>
+```
+`data` is an Object to gather the values which are used to create reactive response, `The response cause the View update automatically`.
+
+#### Using derective statement:
+- Loop statement:
+```bash
+code:
+<turbine id="myFirstTurbineApp">
+	<div t-for="(i, index) in array">{{i + ' ' + index}}</div>
+</turbine>
+
+Turbine({
+    el: "#myFirstTurbineApp",
+    data: {
+      	array: [1,2,3]
+    }
+});
+
+result:
+<div id="myfirstTurbineApp">
+	<div>1 0</div>
+	<div>2 1</div>
+	<div>3 2</div>
+</div>
+```
+- Conditional statement:
+```bash
+code:
+<turbine id="myFirstTurbineApp">
+	<div t-if="showText">this element won't output into the HTML Tree</div>
+</turbine>
+
+Turbine({
+    el: "#myFirstTurbineApp",
+    data: {
+      	showText: false
+    }
+});
+
+result:
+<div id="myfirstTurbineApp"></div>
+```
+- Attribute binding statement:
+```bash
+code:
+<turbine id="myFirstTurbineApp">
+	<div t-bind:class="className">this tag will have a className as "pink"</div>
+</turbine>
+
+Turbine({
+    el: "#myFirstTurbineApp",
+    data: {
+      	className: "pink"
+    }
+});
+
+result:
+<div id="myfirstTurbineApp">
+	<div class="pink">this tag will have a className as "pink"</div>
+</div>
+```
+- EventListener:
+```bash
+code:
+<turbine id="myFirstTurbineApp">
+	<div t-on:click="clickEvent()">this tag is clickable</div>
+</turbine>
+
+Turbine({
+    el: "#myFirstTurbineApp",
+	methods: {
+    	clickEvent: () => {
+        	alert("The tag has been clicked");
+        }
+    }
+});
+```
+- Model statement:
+```bash
+code:
+<turbine id="myFirstTurbineApp">
+	<input type="text" v-model="textValue">
+</turbine>
+
+Turbine({
+    el: "#myFirstTurbineApp",
+    data: {
+    	textValue: "this value will be automatically changed when user changes the input value"
+    }
+});
+```
+- Display statement:
+```bash
+code:
+<turbine id="myFirstTurbineApp">
+	<div v-show="display">This element will output with a style statement "display: none;"</div>
+</turbine>
+
+Turbine({
+    el: "#myFirstTurbineApp",
+    data: {
+    	display: false
+    }
+});
+
+result:
+<div id="myfirstTurbineApp">
+	<div style="display: none;">This element will output with a style statement "display: none;"</div>
+</div>
+```
+- Reference statement:<br>
+You might want to access some node directly, here is a way to satisfy your wish by using `ref` as an attribute on tag.
+```bash
+<turbine id="myFirstTurbineApp">
+	<div ref="aNode">you can assess this node by coding this.$ref.aNode</div>
+</turbine>
+
+let app = Turbine({
+    el: "#myFirstTurbineApp"
+});
+console.log(app.$ref.aNode); // print the dom node out
+```
+
+
+
+
+# Troubleshooting
 If you get into a trouble and want to get help or share how you solved the issue please visit this [page](https://github.com/a2604882741z/turbine/issues).
 
-### Contact me
+# Contact me
 email: [mr.jiangxue@hotmail.com](mailto:mr.jiangxue@hotmail.com)
+
