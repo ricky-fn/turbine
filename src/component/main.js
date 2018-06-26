@@ -2,9 +2,9 @@ import turbine from "../main";
 
 let C;
 
-export default function initComponent() {
+export default function initComponent(config) {
     if (C) {
-        return C;
+        return new C(config);
     }
 
     C = class component extends turbine.prototype._init {
@@ -42,6 +42,8 @@ export default function initComponent() {
             vNode.tagName = this.$el.tagName.toLowerCase();
         }
     };
+
+    return new C(config);
 }
 
 
