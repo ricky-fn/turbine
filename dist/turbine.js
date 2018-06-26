@@ -1524,7 +1524,7 @@
 	        return C;
 	    }
 
-	    C = function (_turbine$prototype$_i) {
+	    return C = function (_turbine$prototype$_i) {
 	        inherits(component, _turbine$prototype$_i);
 
 	        function component(config) {

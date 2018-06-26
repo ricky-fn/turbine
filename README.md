@@ -63,7 +63,7 @@ result:
 ```
 `data` is an Object to gather the values which are used to create reactive response, `The response cause the View update automatically`.
 
-#### Using derective statement:
+#### Using directive statement:
 - Loop statement:
 ```bash
 code:
@@ -191,4 +191,3 @@ If you get into a trouble and want to get help or share how you solved the issue
 
 # Contact me
 email: [mr.jiangxue@hotmail.com](mailto:mr.jiangxue@hotmail.com)
-
