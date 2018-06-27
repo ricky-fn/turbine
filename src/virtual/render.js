@@ -85,9 +85,11 @@ function setAttribs(dom, attribs) {
 }
 
 function insertNode(node, vNode, fragment) {
-
-    if (fragment.childNodes.hasOwnProperty(vNode.index)) {
-        fragment.insertBefore(node, fragment.childNodes[vNode.index]);
+    let index = vNode.index;
+    let nodes = fragment.childNodes;
+    
+    if (nodes.hasOwnProperty(index) && nodes[index]) {
+        fragment.insertBefore(node, nodes[index]);
     } else {
         fragment.appendChild(node);
     }
