@@ -1,5 +1,4 @@
 import deepClone from "../util/clone";
-import watcher from "./watcher";
 import {Dep} from "./observe";
 import evalWithContext from "../util/eval";
 import Component from "../component/main";
@@ -187,51 +186,55 @@ const directives = [
             } else {
                 inner = trim(args[0]);
             }
-            vNode.watchers.push(new watcher(properties, content, {
-                handler: (newVal) => {
-                    vNode.data.reference = isNaN(newVal) ? newVal : (function() {
-                        let array = [];
-                        let max = Number(newVal);
-                        while (array.length < max) {
-                            array.push(array.length);
-                        }
-                        return array;
-                    }());
-                    if (length === undefined) {
+
+            let update = () => {
+                let newVal = evalWithContext(content, properties);
+                vNode.data.reference = isNaN(newVal) ? newVal : (function() {
+                    let array = [];
+                    let max = Number(newVal);
+                    while (array.length < max) {
+                        array.push(array.length);
+                    }
+                    return array;
+                }());
+                if (length === undefined) {
+                    insertNodes({
+                        inner,
+                        counter,
+                        domTree,
+                        properties,
+                        vNode,
+                    });
+                    length = Object.keys(newVal).length;
+                } else {
+                    let nLength = Object.keys(newVal).length;
+                    if (nLength > length) {
                         insertNodes({
                             inner,
                             counter,
                             domTree,
                             properties,
                             vNode,
+                            startAt: length - 1
                         });
-                        length = Object.keys(newVal).length;
-                    } else {
-                        let nLength = Object.keys(newVal).length;
-                        if (nLength > length) {
-                            insertNodes({
-                                inner,
-                                counter,
-                                domTree,
-                                properties,
-                                vNode,
-                                startAt: length - 1
-                            });
-                        } else if (nLength < length) {
-                            domTree.slice(vNode.index + 1 + nLength, vNode.index + 1 +length).forEach(node => {
-                                domTree.splice(domTree.indexOf(node), 1);
-                                node.remove();
-                            });
-                            domTree.forEach((_node, index) => {
-                                _node.index = index;
-                            });
+                    } else if (nLength < length) {
+                        domTree.slice(vNode.index + 1 + nLength, vNode.index + 1 +length).forEach(node => {
+                            domTree.splice(domTree.indexOf(node), 1);
+                            node.remove();
+                        });
+                        domTree.forEach((_node, index) => {
+                            _node.index = index;
+                        });
 
-                        }
-                        length = nLength;
                     }
-                },
-                immediate: true
-            }));
+                    length = nLength;
+                }
+            };
+
+            vNode.directives.push({
+                preventDefaultVal: true,
+                update
+            }) && update();
 
             vNode.type = "comment";
             vNode.content = "";
@@ -522,15 +525,17 @@ function symbol(vNode, domTree, index, context) {
         reg.forEach(function(match) {
             let content = match.match(/[^{{}}]*/g)[2];
             vNode.inserted(node => {
-                vNode.watchers.push(new watcher(context, content, {
-                    handler: (newVal) => {
-                        let text = vNode.content;
-                        let start = text.indexOf(match);
-                        text = text.slice(0, start) + newVal + text.slice(start + match.length);
-                        node.nodeValue = text;
-                    },
-                    immediate: true
-                }));
+                let update = () => {
+                    let newVal = evalWithContext(content, context);
+                    let text = vNode.content;
+                    let start = text.indexOf(match);
+                    text = text.slice(0, start) + newVal + text.slice(start + match.length);
+                    node.nodeValue = text;
+                };
+                vNode.directives.push({
+                    preventDefaultVal: true,
+                    update
+                }) && update();
             });
         });
 
