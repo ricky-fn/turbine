@@ -12,6 +12,7 @@ class vNode {
         this.index = null;
         this.data = {};
         this._if = null;
+        this._once = false;
 
         if (json.type === "element") {
             this.children = json.children;

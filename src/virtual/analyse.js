@@ -454,6 +454,13 @@ const directives = [
                 $refs[name] = undefined;
             }
         }
+    },
+    {
+        directive: "once$",
+        level: 3,
+        bind: (el, binding, vNode) => {
+            vNode._once = true;
+        }
     }
 ];
 
