@@ -1872,7 +1872,7 @@
 	        }
 	    }
 	}, {
-	    directive: "on(\:\w+)?$",
+	    directive: "on(\\:\\w+)?$",
 	    level: 1,
 	    preventDefaultVal: true,
 	    bind: function bind(el, binding, vNode) {

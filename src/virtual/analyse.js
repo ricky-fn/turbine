@@ -257,7 +257,7 @@ const directives = [
         }
     },
     {
-        directive: "on(\:\w+)?$",
+        directive: "on(\\:\\w+)?$",
         level: 1,
         preventDefaultVal: true,
         bind: function(el, binding, vNode) {
