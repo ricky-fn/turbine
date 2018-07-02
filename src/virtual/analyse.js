@@ -257,7 +257,7 @@ const directives = [
         }
     },
     {
-        directive: "on",
+        directive: "on(\:\w+)?$",
         level: 1,
         preventDefaultVal: true,
         bind: function(el, binding, vNode) {
@@ -457,7 +457,8 @@ const directives = [
     },
     {
         directive: "once$",
-        level: 3,
+        level: 0,
+        preventDefaultVal: true,
         bind: (el, binding, vNode) => {
             vNode._once = true;
         }

@@ -1378,6 +1378,7 @@
 	        this.index = null;
 	        this.data = {};
 	        this._if = null;
+	        this._once = false;
 
 	        if (json.type === "element") {
 	            this.children = json.children;
@@ -1871,7 +1872,7 @@
 	        }
 	    }
 	}, {
-	    directive: "on",
+	    directive: "on(\:\w+)?$",
 	    level: 1,
 	    preventDefaultVal: true,
 	    bind: function bind(el, binding, vNode) {
@@ -2081,6 +2082,13 @@
 	            _refs[name] = undefined;
 	            $refs[name] = undefined;
 	        }
+	    }
+	}, {
+	    directive: "once$",
+	    level: 0,
+	    preventDefaultVal: true,
+	    bind: function bind(el, binding, vNode) {
+	        vNode._once = true;
 	    }
 	}];
 
@@ -2317,6 +2325,10 @@
 	            var _loop = function _loop(_index2) {
 	                var vNode = domTree[_index2];
 	                vNode.index = _index2;
+
+	                if (vNode._once === true) {
+	                    return "continue";
+	                }
 
 	                if (vNode.isReady) {
 	                    vNode.directives.forEach(function (obj) {
