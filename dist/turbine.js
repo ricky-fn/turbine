@@ -830,9 +830,11 @@
 	}
 
 	function insertNode(node, vNode, fragment) {
+	    var index = vNode.index;
+	    var nodes = fragment.childNodes;
 
-	    if (fragment.childNodes.hasOwnProperty(vNode.index)) {
-	        fragment.insertBefore(node, fragment.childNodes[vNode.index]);
+	    if (nodes.hasOwnProperty(index) && nodes[index]) {
+	        fragment.insertBefore(node, nodes[index]);
 	    } else {
 	        fragment.appendChild(node);
 	    }
@@ -1376,6 +1378,7 @@
 	        this.index = null;
 	        this.data = {};
 	        this._if = null;
+	        this._once = false;
 
 	        if (json.type === "element") {
 	            this.children = json.children;
@@ -1519,12 +1522,12 @@
 
 	var C = void 0;
 
-	function initComponent() {
+	function initComponent(config) {
 	    if (C) {
-	        return C;
+	        return new C(config);
 	    }
 
-	    return C = function (_turbine$prototype$_i) {
+	    C = function (_turbine$prototype$_i) {
 	        inherits(component, _turbine$prototype$_i);
 
 	        function component(config) {
@@ -1573,6 +1576,8 @@
 
 	        return component;
 	    }(turbine.prototype._init);
+
+	    return new C(config);
 	}
 
 	function getSlots(vNode) {
@@ -1795,50 +1800,54 @@
 	        } else {
 	            inner = trim(args[0]);
 	        }
-	        vNode.watchers.push(new watch(properties, content, {
-	            handler: function handler(newVal) {
-	                vNode.data.reference = isNaN(newVal) ? newVal : function () {
-	                    var array = [];
-	                    var max = Number(newVal);
-	                    while (array.length < max) {
-	                        array.push(array.length);
-	                    }
-	                    return array;
-	                }();
-	                if (length === undefined) {
+
+	        var update = function update() {
+	            var newVal = evalWithContext(content, properties);
+	            vNode.data.reference = isNaN(newVal) ? newVal : function () {
+	                var array = [];
+	                var max = Number(newVal);
+	                while (array.length < max) {
+	                    array.push(array.length);
+	                }
+	                return array;
+	            }();
+	            if (length === undefined) {
+	                insertNodes({
+	                    inner: inner,
+	                    counter: counter,
+	                    domTree: domTree,
+	                    properties: properties,
+	                    vNode: vNode
+	                });
+	                length = Object.keys(newVal).length;
+	            } else {
+	                var nLength = Object.keys(newVal).length;
+	                if (nLength > length) {
 	                    insertNodes({
 	                        inner: inner,
 	                        counter: counter,
 	                        domTree: domTree,
 	                        properties: properties,
-	                        vNode: vNode
+	                        vNode: vNode,
+	                        startAt: length - 1
 	                    });
-	                    length = Object.keys(newVal).length;
-	                } else {
-	                    var nLength = Object.keys(newVal).length;
-	                    if (nLength > length) {
-	                        insertNodes({
-	                            inner: inner,
-	                            counter: counter,
-	                            domTree: domTree,
-	                            properties: properties,
-	                            vNode: vNode,
-	                            startAt: length - 1
-	                        });
-	                    } else if (nLength < length) {
-	                        domTree.slice(vNode.index + 1 + nLength, vNode.index + 1 + length).forEach(function (node) {
-	                            domTree.splice(domTree.indexOf(node), 1);
-	                            node.remove();
-	                        });
-	                        domTree.forEach(function (_node, index) {
-	                            _node.index = index;
-	                        });
-	                    }
-	                    length = nLength;
+	                } else if (nLength < length) {
+	                    domTree.slice(vNode.index + 1 + nLength, vNode.index + 1 + length).forEach(function (node) {
+	                        domTree.splice(domTree.indexOf(node), 1);
+	                        node.remove();
+	                    });
+	                    domTree.forEach(function (_node, index) {
+	                        _node.index = index;
+	                    });
 	                }
-	            },
-	            immediate: true
-	        }));
+	                length = nLength;
+	            }
+	        };
+
+	        vNode.directives.push({
+	            preventDefaultVal: true,
+	            update: update
+	        }) && update();
 
 	        vNode.type = "comment";
 	        vNode.content = "";
@@ -1863,7 +1872,7 @@
 	        }
 	    }
 	}, {
-	    directive: "on",
+	    directive: "on(\:\w+)?$",
 	    level: 1,
 	    preventDefaultVal: true,
 	    bind: function bind(el, binding, vNode) {
@@ -2074,6 +2083,13 @@
 	            $refs[name] = undefined;
 	        }
 	    }
+	}, {
+	    directive: "once$",
+	    level: 0,
+	    preventDefaultVal: true,
+	    bind: function bind(el, binding, vNode) {
+	        vNode._once = true;
+	    }
 	}];
 
 	function bindingUpdate(el, binding, vNode) {
@@ -2145,15 +2161,17 @@
 	        reg.forEach(function (match) {
 	            var content = match.match(/[^{{}}]*/g)[2];
 	            vNode.inserted(function (node) {
-	                vNode.watchers.push(new watch(context, content, {
-	                    handler: function handler(newVal) {
-	                        var text = vNode.content;
-	                        var start = text.indexOf(match);
-	                        text = text.slice(0, start) + newVal + text.slice(start + match.length);
-	                        node.nodeValue = text;
-	                    },
-	                    immediate: true
-	                }));
+	                var update = function update() {
+	                    var newVal = evalWithContext(content, context);
+	                    var text = vNode.content;
+	                    var start = text.indexOf(match);
+	                    text = text.slice(0, start) + newVal + text.slice(start + match.length);
+	                    node.nodeValue = text;
+	                };
+	                vNode.directives.push({
+	                    preventDefaultVal: true,
+	                    update: update
+	                }) && update();
 	            });
 	        });
 
@@ -2307,6 +2325,10 @@
 	            var _loop = function _loop(_index2) {
 	                var vNode = domTree[_index2];
 	                vNode.index = _index2;
+
+	                if (vNode._once === true) {
+	                    return "continue";
+	                }
 
 	                if (vNode.isReady) {
 	                    vNode.directives.forEach(function (obj) {
@@ -2576,7 +2598,7 @@
 	        this._components = [];
 	        // this._isComponent = props._isComponent || false;
 	        // this.$parent = props.$parent || null;
-	        // this.slots = slots || null;
+	        this.slots = slots || null;
 	        this._dir = [];
 	        this._vnode = [];
 	        this.$el = null;

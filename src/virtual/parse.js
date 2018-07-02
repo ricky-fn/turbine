@@ -14,6 +14,10 @@ class parseTemplate {
             let vNode = domTree[index];
             vNode.index = index;
 
+            if (vNode._once === true) {
+                continue;
+            }
+
             if (vNode.isReady) {
                 vNode.directives.forEach(obj => {
                     let binding = obj.binding;
