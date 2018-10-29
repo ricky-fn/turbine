@@ -1224,7 +1224,7 @@
 	    var nextOB = getobserve(newVal);
 	    if (nextOB && preOB) {
 	        updateWatchers(preOB.dep, nextOB.dep);
-	        preOB.dep.notify();
+	        preOB.dep.notify(newVal, oldVal);
 	        eliminateWatchers(preOB.dep);
 	        var newValKeys = Object.keys(newVal);
 	        Object.keys(oldVal).forEach(function (val, key) {
@@ -1294,9 +1294,9 @@
 
 	    createClass(watch, [{
 	        key: "update",
-	        value: function update(newVals) {
-	            var oldVal = this.value;
-	            var newVal = this.get();
+	        value: function update(newVal, oldVal) {
+	            // let oldVal = oldVal;
+	            // let newVal = newVal;
 	            this.value = newVal;
 
 	            if (this.immediate) {
@@ -1304,8 +1304,8 @@
 	                return this.immediate = false;
 	            }
 
-	            if (this.deep && !this.immediate && newVals != undefined) {
-	                loopVal.call(this, newVals);
+	            if (this.deep && !this.immediate && newVal != undefined) {
+	                loopVal.call(this, newVal);
 	            }
 
 	            if (oldVal !== newVal || oldVal instanceof Object) {
@@ -1551,10 +1551,14 @@
 	                    var prop = ArrayFind(vNode.attributes, function (attr) {
 	                        return attr.key === propName;
 	                    });
-	                    if (prop == null) {
+	                    if (prop === null) {
 	                        return console.warn("cannot find prop name on element's attributes.\nprop name: " + propName);
 	                    }
-	                    usedData[propName] = prop.value;
+	                    if (prop.value instanceof Function) {
+	                        config[propName] = prop.value;
+	                    } else {
+	                        usedData[propName] = prop.value;
+	                    }
 	                });
 	                delete config.prop;
 	            }
@@ -1571,6 +1575,7 @@
 	            vNode.data.component = _this;
 	            vNode.el = _this.$el;
 	            vNode.tagName = _this.$el.tagName.toLowerCase();
+	            vNode.children = [];
 	            return _this;
 	        }
 
@@ -1605,6 +1610,7 @@
 	            return data;
 	        }
 	    }
+	    return null;
 	}
 
 	var _this4 = undefined;
@@ -2090,6 +2096,12 @@
 	    bind: function bind(el, binding, vNode) {
 	        vNode._once = true;
 	    }
+	}, {
+	    directive: "html$",
+	    level: 4,
+	    update: function update(el, binding) {
+	        el.innerHTML = binding.result;
+	    }
 	}];
 
 	function bindingUpdate(el, binding, vNode) {
@@ -2119,38 +2131,58 @@
 	                });
 	            }
 	        } else {
-	            Object.keys(value).forEach(function (key) {
-	                if (vNode.isComponent) {
-	                    if (component === undefined) {
-	                        vNode.attributes.push({ key: key, value: value[key] });
-	                    } else {
-	                        component.$data.__ob__.update(key, value[key]);
-	                    }
-	                } else {
-	                    setAttribute(vNode, el, key, value[key]);
-	                }
-	            });
-	        }
-	    } else if (value instanceof Array) {
-	        if (vNode.isComponent) {
-	            if (component === undefined) {
-	                vNode.attributes.push({ key: binding.args, value: value[0] });
-	            } else {
-	                component.$data.__ob__.update(binding.args, value[0]);
-	            }
-	        } else {
-	            setAttribute(vNode, el, binding.args, value[0]);
-	        }
-	    } else {
-	        if (vNode.isComponent) {
 	            if (component === undefined) {
 	                vNode.attributes.push({ key: binding.args, value: value });
 	            } else {
 	                component.$data.__ob__.update(binding.args, value);
 	            }
-	        } else {
-	            setAttribute(vNode, el, binding.args, value);
+	            // } else {
+	            //     Object.keys(value).forEach(key => {
+	            //         setAttribute(vNode, el, key, value[key]);
+	            //     });
+	            // }
 	        }
+	        // } else if (value instanceof Array) {
+	        //     if (vNode.isComponent) {
+	        //         if (component === undefined) {
+	        //             vNode.attributes.push({key: binding.args, value});
+	        //         } else {
+	        //             component.$data.__ob__.update(binding.args, value);
+	        //         }
+	        //     } else {
+	        //         setAttribute(vNode, el, binding.args, value);
+	        //     }
+	    } else {
+	        if (value instanceof Function) {
+	            binding.result = function () {
+	                value.apply(vNode.context, arguments);
+	            };
+	        }
+	        // if (vNode.isComponent) {
+	        //     if (component === undefined) {
+	        //         vNode.attributes.push({key: binding.args, value});
+	        //     } else {
+	        //         component.$data.__ob__.update(binding.args, value);
+	        //     }
+	        // } else {
+	        //     setAttribute(vNode, el, binding.args, value);
+	        // }
+	        valUpdate.apply(null, arguments);
+	    }
+	}
+
+	function valUpdate(el, binding, vNode) {
+	    var value = binding.result;
+	    var component = vNode.data.component;
+
+	    if (vNode.isComponent) {
+	        if (component === undefined) {
+	            vNode.attributes.push({ key: binding.args, value: value });
+	        } else {
+	            component.$data.__ob__.update(binding.args, value);
+	        }
+	    } else {
+	        setAttribute(vNode, el, binding.args, value);
 	    }
 	}
 

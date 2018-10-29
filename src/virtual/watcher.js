@@ -31,9 +31,9 @@ class watch {
             this.update();
         }
     }
-    update(newVals) {
-        let oldVal = this.value;
-        let newVal = this.get();
+    update(newVal, oldVal) {
+        // let oldVal = oldVal;
+        // let newVal = newVal;
         this.value = newVal;
 
         if (this.immediate) {
@@ -41,8 +41,8 @@ class watch {
             return this.immediate = false;
         }
 
-        if (this.deep && !this.immediate && newVals != undefined) {
-            loopVal.call(this, newVals);
+        if (this.deep && !this.immediate && newVal != undefined) {
+            loopVal.call(this, newVal);
         }
 
         if (oldVal !== newVal || oldVal instanceof Object) {

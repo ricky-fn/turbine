@@ -260,7 +260,7 @@ function injectWathcers(oldVal, newVal) {
     let nextOB = getobserve(newVal);
     if (nextOB && preOB) {
         updateWatchers(preOB.dep, nextOB.dep);
-        preOB.dep.notify();
+        preOB.dep.notify(newVal, oldVal);
         eliminateWatchers(preOB.dep);
         let newValKeys = Object.keys(newVal);
         Object.keys(oldVal).forEach((val, key) => {
