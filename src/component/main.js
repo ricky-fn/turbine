@@ -21,10 +21,14 @@ export default function initComponent(config) {
             if (props != undefined && props instanceof Array) {
                 props.forEach(propName => {
                     let prop = ArrayFind(vNode.attributes, attr => attr.key === propName);
-                    if (prop == null) {
+                    if (prop === null) {
                         return console.warn("cannot find prop name on element's attributes.\nprop name: " + propName);
                     }
-                    usedData[propName] = prop.value;
+                    if (prop.value instanceof Function) {
+                        config[propName] = prop.value;
+                    } else {
+                        usedData[propName] = prop.value;
+                    }
                 });
                 delete config.prop;
             }
@@ -40,6 +44,7 @@ export default function initComponent(config) {
             vNode.data.component = this;
             vNode.el = this.$el;
             vNode.tagName = this.$el.tagName.toLowerCase();
+            vNode.children = [];
         }
     };
 
@@ -70,6 +75,7 @@ function ArrayFind(array, callback) {
             return data;
         }
     }
+    return null;
 }
 
 // export default component;

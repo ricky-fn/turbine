@@ -462,6 +462,13 @@ const directives = [
         bind: (el, binding, vNode) => {
             vNode._once = true;
         }
+    },
+    {
+        directive: "html$",
+        level: 4,
+        update: (el, binding) => {
+            el.innerHTML = binding.result;
+        }
     }
 ];
 
@@ -491,38 +498,58 @@ function bindingUpdate(el, binding, vNode) {
                 });
             }
         } else {
-            Object.keys(value).forEach(key => {
-                if (vNode.isComponent) {
-                    if (component === undefined) {
-                        vNode.attributes.push({key, value: value[key]});
-                    } else {
-                        component.$data.__ob__.update(key, value[key]);
-                    }
-                } else {
-                    setAttribute(vNode, el, key, value[key]);
-                }
-            });
-        }
-    } else if (value instanceof Array) {
-        if (vNode.isComponent) {
             if (component === undefined) {
-                vNode.attributes.push({key: binding.args, value: value[0]});
-            } else {
-                component.$data.__ob__.update(binding.args, value[0]);
-            }
-        } else {
-            setAttribute(vNode, el, binding.args, value[0]);
-        }
-    } else {
-        if (vNode.isComponent) {
-            if (component === undefined) {
-                vNode.attributes.push({key: binding.args, value});
+                vNode.attributes.push({ key: binding.args, value });
             } else {
                 component.$data.__ob__.update(binding.args, value);
             }
-        } else {
-            setAttribute(vNode, el, binding.args, value);
+            // } else {
+            //     Object.keys(value).forEach(key => {
+            //         setAttribute(vNode, el, key, value[key]);
+            //     });
+            // }
         }
+    // } else if (value instanceof Array) {
+    //     if (vNode.isComponent) {
+    //         if (component === undefined) {
+    //             vNode.attributes.push({key: binding.args, value});
+    //         } else {
+    //             component.$data.__ob__.update(binding.args, value);
+    //         }
+    //     } else {
+    //         setAttribute(vNode, el, binding.args, value);
+    //     }
+    } else {
+        if(value instanceof Function) {
+            binding.result = function() {
+                value.apply(vNode.context, arguments);
+            };
+        }
+        // if (vNode.isComponent) {
+        //     if (component === undefined) {
+        //         vNode.attributes.push({key: binding.args, value});
+        //     } else {
+        //         component.$data.__ob__.update(binding.args, value);
+        //     }
+        // } else {
+        //     setAttribute(vNode, el, binding.args, value);
+        // }
+        valUpdate.apply(null, arguments);
+    }
+}
+
+function valUpdate(el, binding, vNode) {
+    let value = binding.result;
+    let component = vNode.data.component;
+
+    if (vNode.isComponent) {
+        if (component === undefined) {
+            vNode.attributes.push({key: binding.args, value});
+        } else {
+            component.$data.__ob__.update(binding.args, value);
+        }
+    } else {
+        setAttribute(vNode, el, binding.args, value);
     }
 }
 
