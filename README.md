@@ -2,7 +2,7 @@
 ![npm](https://img.shields.io/badge/npm-5.6.0-brightgreen.svg)
 ![node](https://img.shields.io/badge/node-8.11.3-brightgreen.svg)
 
-<div style="text-align:center; margin: 40px 0;"><img src="https://raw.githubusercontent.com/rickysna/turbine/master/src/logo.png"/></div>
+<br><p align="center"><img src="https://raw.githubusercontent.com/rickysna/turbine/master/src/logo.png"/></p><br>
 
 This is a SPA project, It's created with corn concept of [Vue](https://github.com/vuejs/vue), It coded by ES6 Syntax and based on [MVVM](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93viewmodel) pattern.
 
