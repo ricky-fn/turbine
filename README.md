@@ -193,6 +193,6 @@ console.log(app.$refs.aNode); // print the dom node out
 If you get into a trouble and want to get help or share how you solved the issue please visit this [page](https://github.com/a2604882741z/turbine/issues).
 
 # Contact me
-Profile: [link](http://rickyjiang.com)<br>
-Github: [link](https://github.com/rickysna/)<br>
+Profile: [http://rickyjiang.com](http://rickyjiang.com)<br>
 Email: [mr.jiangxue@hotmail.com](mailto:mr.jiangxue@hotmail.com)
+Github: [link](https://github.com/rickysna/)<br>
