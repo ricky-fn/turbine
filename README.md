@@ -194,5 +194,5 @@ If you get into a trouble and want to get help or share how you solved the issue
 
 # Contact me
 Profile: [http://rickyjiang.com](http://rickyjiang.com)<br>
-Email: [mr.jiangxue@hotmail.com](mailto:mr.jiangxue@hotmail.com)
+Email: [mr.jiangxue@hotmail.com](mailto:mr.jiangxue@hotmail.com)<br>
 Github: [link](https://github.com/rickysna/)<br>
